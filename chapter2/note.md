@@ -252,3 +252,286 @@ public class AdjMatrix {
 
 
 
+#### 2-6 邻接表的实现
+
+邻接表的本质是一个链表数组，为图中每个顶点都开辟一个链表，链表中存储的是与其相邻的顶点。
+
+邻接表的实现：
+
+```java
+package chapter2.section6;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.LinkedList;
+import java.util.Scanner;
+
+public class AdjList {
+    // 图的顶点
+    private int V;
+    // 图的边
+    private int E;
+    private LinkedList<Integer>[] adj;
+
+    public AdjList(String fileName) {
+        File file = new File(fileName);
+        try (Scanner scanner = new Scanner(file)) {
+            V = scanner.nextInt();
+            // 图中的顶点个数必须是非负数
+            if (V < 0) {
+                throw new IllegalArgumentException("V must be non-negative");
+            }
+            adj = new LinkedList[V];
+            for (int i = 0; i < V; i++) {
+                adj[i] = new LinkedList<>();
+            }
+            E = scanner.nextInt();
+            // 图中的边的个数必须是非负数
+            if (E < 0) {
+                throw new IllegalArgumentException("E must be non-negative");
+            }
+            for (int i = 0; i < E; i++) {
+                int a = scanner.nextInt();
+                validateVertex(a);
+                int b = scanner.nextInt();
+                validateVertex(b);
+
+                // 判断是否有自环边
+                if (a == b) {
+                    throw new IllegalArgumentException("Self Loop is Detected!");
+                }
+                // 判断是否有平行边
+                if (adj[a].contains(b)) {
+                    throw new IllegalArgumentException("Parallel Edges are Detected!");
+                }
+                adj[a].add(b);
+                adj[b].add(a);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public int V() {
+        return V;
+    }
+
+    public int E() {
+        return E;
+    }
+
+    public boolean hasEdge(int v, int w) {
+        validateVertex(v);
+        validateVertex(w);
+        return adj[v].contains(w);
+    }
+
+    // 和v这个顶点相邻的顶点
+    public LinkedList<Integer> adj(int v) {
+        validateVertex(v);
+        return adj[v];
+    }
+
+    // 返回一个顶点的度
+    public int degree(int v) {
+        return adj(v).size();
+    }
+
+    private void validateVertex(int v) {
+        if (v < 0 || v >= V) {
+            throw new IllegalArgumentException("vertex" + V + "is invalid");
+        }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("V = %d, E = %d\n", V, E));
+        for (int i = 0; i < V; i++) {
+            sb.append(String.format("%d : ",i));
+            for (int w : adj[i]) {
+                sb.append(String.format("%d ", w));
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    public static void main(String[] args) {
+        AdjList adjList = new AdjList("g.txt");
+        System.out.println(adjList);
+    }
+}
+```
+
+程序运行输出结果为：
+
+```
+V = 7, E = 9
+0 : 1 3 
+1 : 0 2 6 
+2 : 1 3 5 
+3 : 0 2 4 
+4 : 3 5 
+5 : 2 4 6 
+6 : 1 5 
+```
+
+不过我们的代码在性能和实现度上仍然有可以改进的地方
+
+#### 2-7 邻接表的问题和改进
+
+我们来分析下我们代码的时间复杂度与空间复杂度：
+
+- 空间复杂度：`O(V + E)`
+
+  因为我们为每个顶点都开辟了一个链表，消耗了`O(V)`的空间；每个链表都存储了与之相邻的顶点，这个空间复杂度为`O(2 * E)`,因为两个顶点都要存储对方各一次，所以要乘以系数`2`;不过最终的额外空间复杂度则忽略掉常数系数，所以空间复杂度为:`O(V + E)`
+
+- 时间复杂度：
+
+  - 建图：`O(E * V)`
+  - 查看两点是否相邻：`O(degree(v))`
+  - 求一个点的相邻节点：`O(degree(v))`
+
+这样看来，邻接表也是有它的性能瓶颈的，主要体现在**建图**与**查看两点是否相邻**这两个操作
+
+但是，这两点是可以进行优化的，本质上我们需要解决的问题是：**快速查看两点是否相邻**
+
+这是一个典型的数据结构问题，我们不应该使用链表，替换链表的数据结构应该为：
+
+- `HashSet`，使用哈希表那么快速查看两点是否相邻就会优化到`O(1)`的时间复杂度
+- 或
+- `TreeSet`，使用红黑树那么快速查看两点是否相邻就会优化到`O(logv)`到时间复杂度
+
+#### 2-8 实现邻接表的改进
+
+那么我们应该使用哈希表还是红黑树来代替链表这种数据结构呢？
+
+通常，我们应该使用哈希表，原因是因为哈希表的增删改查操作均为`O(1)`，在性能上是首选。
+
+不过，红黑树能够保证元素的**顺序性**，另外红黑树也要比哈希表更节省空间。
+
+本课程使用的是红黑树来替换链表这种数据结构。
+
+代码如下：
+
+```java
+package chapter2.section8;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Scanner;
+import java.util.TreeSet;
+
+public class AdjSet {
+    // 图的顶点
+    private int V;
+    // 图的边
+    private int E;
+    private TreeSet<Integer>[] adj;
+
+    public AdjSet(String fileName) {
+        File file = new File(fileName);
+        try (Scanner scanner = new Scanner(file)) {
+            V = scanner.nextInt();
+            // 图中的顶点个数必须是非负数
+            if (V < 0) {
+                throw new IllegalArgumentException("V must be non-negative");
+            }
+            adj = new TreeSet[V];
+            for (int i = 0; i < V; i++) {
+                adj[i] = new TreeSet<>();
+            }
+            E = scanner.nextInt();
+            // 图中的边的个数必须是非负数
+            if (E < 0) {
+                throw new IllegalArgumentException("E must be non-negative");
+            }
+            for (int i = 0; i < E; i++) {
+                int a = scanner.nextInt();
+                validateVertex(a);
+                int b = scanner.nextInt();
+                validateVertex(b);
+
+                // 判断是否有自环边
+                if (a == b) {
+                    throw new IllegalArgumentException("Self Loop is Detected!");
+                }
+                // 判断是否有平行边,判断是否有平行边需要遍历整个链表
+                if (adj[a].contains(b)) {
+                    throw new IllegalArgumentException("Parallel Edges are Detected!");
+                }
+                adj[a].add(b);
+                adj[b].add(a);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public int V() {
+        return V;
+    }
+
+    public int E() {
+        return E;
+    }
+
+    public boolean hasEdge(int v, int w) {
+        validateVertex(v);
+        validateVertex(w);
+        return adj[v].contains(w);
+    }
+
+    // 和v这个顶点相邻的顶点
+    // 屏蔽实现细节，返回Iterable接口
+    public Iterable<Integer> adj(int v) {
+        validateVertex(v);
+        return adj[v];
+    }
+
+    // 返回一个顶点的度
+    public int degree(int v) {
+        validateVertex(v);
+        return adj[v].size();
+    }
+
+    private void validateVertex(int v) {
+        if (v < 0 || v >= V) {
+            throw new IllegalArgumentException("vertex" + V + "is invalid");
+        }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("V = %d, E = %d\n", V, E));
+        for (int i = 0; i < V; i++) {
+            sb.append(String.format("%d : ",i));
+            for (int w : adj[i]) {
+                sb.append(String.format("%d ", w));
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    public static void main(String[] args) {
+        AdjSet adjSet = new AdjSet("g.txt");
+        System.out.println(adjSet);
+    }
+}
+```
+
+#### 2-9 图的基本表示的比较
+
+<img src="https://tva1.sinaimg.cn/large/008eGmZEgy1gmsitp0hmqj30wm0d2djr.jpg" alt="image-20210119044627845" style="zoom: 50%;" align="left"/>
+
+可以看到使用红黑树作为底层实现的邻接表的实现大大优于前两者，无论是稀疏图还是稠密图，这种实现都有巨大的优势
+
+ 
+
+
+
+
+
